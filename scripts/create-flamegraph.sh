@@ -1,19 +1,31 @@
 #!/usr/bin/env bash
 
-# Make sure FlameGraph scripts are available
-if [ ! -e ./FlameGraph ]
-then
-    git clone https://github.com/BrendanGregg/FlameGraph
-fi
+# The full path to the script directory, regardless of pwd.
+DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
-if [ ! -e target/release/alacritty ]
+# Make sure perf is available.
+if [ ! -x "$(command -v perf)" ]
 then
-    echo "Must build alacritty first: cargo build --release"
+    echo "Cannot find perf, please make sure it's installed."
     exit 1
 fi
 
-# This will block while alacritty runs
-perf record -g -F 99 target/release/alacritty
-perf script | ./FlameGraph/stackcollapse-perf.pl | ./FlameGraph/flamegraph.pl --width 1920 > alacritty.svg
+# Install cargo-flamegraph
+installed_flamegraph=0
+if [ ! -x "$(command -v cargo-flamegraph)" ]; then
+    echo "cargo-flamegraph not installed; installing ..."
+    cargo install flamegraph
+    installed_flamegraph=1
+fi
 
-echo "Flame graph created at file://$(pwd)/alacritty.svg"
+# Create flamegraph
+cargo flamegraph --bin=alacritty -- $@
+
+# Unintall cargo-flamegraph if it has been installed with this script
+if [ $installed_flamegraph == 1 ]; then
+    read -p "Would you like to uninstall cargo-flamegraph? [Y/n] " -n 1 -r
+    echo
+    if [[ "$REPLY" =~ ^[^Nn]*$ ]]; then
+        cargo uninstall flamegraph
+    fi
+fi
